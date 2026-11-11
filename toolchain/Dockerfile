@@ -8,7 +8,7 @@ WORKDIR /src
 # Pin: arduino-cli v1.5.1 (01f3d4f2ba7c2eaafb5dc710c8a1903af7762fea)
 ARG ARDUINO_CLI_REF=v1.5.1
 RUN git clone --depth 1 --branch "${ARDUINO_CLI_REF}" https://github.com/arduino/arduino-cli.git .
-RUN go build -o /out/arduino-cli .
+RUN go build -ldflags "-X github.com/arduino/arduino-cli/internal/version.versionString=${ARDUINO_CLI_REF} -X github.com/arduino/arduino-cli/internal/version.commit=$(git rev-parse HEAD)" -o /out/arduino-cli .
 
 FROM debian:bookworm-slim AS final
 USER root

@@ -37,7 +37,7 @@ fi
 
 (
   cd "${SRC_DIR}"
-  go build -o "${OUT_DIR}/arduino-cli" .
+  go build -ldflags "-X github.com/arduino/arduino-cli/internal/version.versionString=${ARDUINO_CLI_REF} -X github.com/arduino/arduino-cli/internal/version.commit=$(git rev-parse HEAD)" -o "${OUT_DIR}/arduino-cli" .
 )
 
 "${OUT_DIR}/arduino-cli" version
