@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Compile a sketch for Arduino Uno (arduino:avr:uno) only.
+set -euo pipefail
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_help() {
+  cat <<'EOF'
+Usage: arduino-compile <sketch-dir> [--help]
+
+Compiles with FQBN arduino:avr:uno using Docker image arduino-devkit:uno when
+available, otherwise host arduino-cli.
+
+Environment:
+  ARDUINO_DEVKIT_MODE   auto|docker|host
+  ARDUINO_DEVKIT_IMAGE  docker image (default: arduino-devkit:uno)
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  print_help
+  exit 0
+fi
+if [[ $# -ne 1 ]]; then
+  usage_exit "arduino-compile: require exactly one sketch directory (try --help)"
+fi
+
+SKETCH="$(abs_path "$1")"
+require_sketch_dir "${SKETCH}"
+PARENT="$(dirname "${SKETCH}")"
+BASE="$(basename "${SKETCH}")"
+
+MODE="host"
+if use_docker; then
+  MODE="docker"
+  export ARDUINO_SKETCH_MOUNT="${PARENT}"
+  # Read-only sketch mount: write objects to container /tmp
+  if ! run_cli compile --fqbn "${ARDUINO_FQBN}" --build-path /tmp/arduino-build "/work/${BASE}"; then
+    die "compile_failed sketch=${SKETCH} mode=${MODE}"
+  fi
+else
+  if ! run_cli compile --fqbn "${ARDUINO_FQBN}" "${SKETCH}"; then
+    die "compile_failed sketch=${SKETCH} mode=${MODE}"
+  fi
+fi
+
+summary "ok=true command=compile sketch=${SKETCH} fqbn=${ARDUINO_FQBN} mode=${MODE}"

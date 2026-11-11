@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Open serial monitor. Requires explicit --port.
+set -euo pipefail
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_help() {
+  cat <<'EOF'
+Usage: arduino-monitor --port <port> [--baud <rate>] [--help]
+
+Opens arduino-cli monitor. --port is required. Default baud: 9600.
+
+Uses host mode when ARDUINO_DEVKIT_MODE=auto (USB device access).
+
+Environment:
+  ARDUINO_DEVKIT_MODE   auto|docker|host
+  ARDUINO_CLI           path to host arduino-cli
+EOF
+}
+
+PORT=""
+BAUD="9600"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      print_help
+      exit 0
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || die "missing_port_value"
+      PORT="$2"
+      shift 2
+      ;;
+    --port=*)
+      PORT="${1#--port=}"
+      shift
+      ;;
+    --baud)
+      [[ $# -ge 2 ]] || die "missing_baud_value"
+      BAUD="$2"
+      shift 2
+      ;;
+    --baud=*)
+      BAUD="${1#--baud=}"
+      shift
+      ;;
+    -*)
+      die "unknown_flag flag=$1"
+      ;;
+    *)
+      die "unexpected_arg arg=$1"
+      ;;
+  esac
+done
+
+[[ -n "${PORT}" ]] || die "port_required hint=pass_--port_/dev/cu.usbmodemXXXX"
+[[ "${BAUD}" =~ ^[0-9]+$ ]] || die "invalid_baud baud=${BAUD}"
+
+if [[ "${ARDUINO_DEVKIT_MODE}" == "auto" ]]; then
+  ARDUINO_DEVKIT_MODE=host
+fi
+
+if [[ ! -e "${PORT}" ]]; then
+  die "port_not_found port=${PORT} hint=run_arduino-doctor"
+fi
+
+MODE="${ARDUINO_DEVKIT_MODE}"
+# monitor is interactive; still argv-safe
+if ! run_cli monitor -p "${PORT}" -c "baudrate=${BAUD}"; then
+  die "monitor_failed port=${PORT} baud=${BAUD}"
+fi
+
+summary "ok=true command=monitor port=${PORT} baud=${BAUD} mode=${MODE}"

@@ -1,0 +1,7 @@
+.local/
+*.hex
+*.elf
+*.o
+build/
+.DS_Store
+*.vsix

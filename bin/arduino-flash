@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# Compile + upload to Arduino Uno. Requires explicit --port (no guessing).
+set -euo pipefail
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_help() {
+  cat <<'EOF'
+Usage: arduino-flash --port <port> <sketch-dir> [--help]
+
+Compiles for arduino:avr:uno then uploads. --port is required (e.g. /dev/cu.usbmodem*).
+Refuses to guess a serial port.
+
+Flash uses host mode by default (USB devices). Set ARDUINO_DEVKIT_MODE=docker only
+if you know how to pass the device into the container.
+
+Environment:
+  ARDUINO_DEVKIT_MODE   auto|docker|host (default for flash: host if auto)
+  ARDUINO_CLI           path to host arduino-cli
+EOF
+}
+
+PORT=""
+SKETCH=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --help|-h)
+      print_help
+      exit 0
+      ;;
+    --port)
+      [[ $# -ge 2 ]] || die "missing_port_value"
+      PORT="$2"
+      shift 2
+      ;;
+    --port=*)
+      PORT="${1#--port=}"
+      shift
+      ;;
+    -*)
+      die "unknown_flag flag=$1"
+      ;;
+    *)
+      if [[ -n "${SKETCH}" ]]; then
+        die "unexpected_arg arg=$1"
+      fi
+      SKETCH="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "${PORT}" ]] || die "port_required hint=pass_--port_/dev/cu.usbmodemXXXX"
+[[ -n "${SKETCH}" ]] || die "sketch_required"
+
+# Flash needs USB — force host when mode is auto
+if [[ "${ARDUINO_DEVKIT_MODE}" == "auto" ]]; then
+  ARDUINO_DEVKIT_MODE=host
+fi
+
+SKETCH="$(abs_path "${SKETCH}")"
+require_sketch_dir "${SKETCH}"
+
+# Validate port path exists (host)
+if [[ ! -e "${PORT}" ]]; then
+  die "port_not_found port=${PORT} hint=run_arduino-doctor"
+fi
+
+MODE="${ARDUINO_DEVKIT_MODE}"
+if ! run_cli compile --fqbn "${ARDUINO_FQBN}" "${SKETCH}"; then
+  die "compile_failed sketch=${SKETCH}"
+fi
+if ! run_cli upload --fqbn "${ARDUINO_FQBN}" -p "${PORT}" "${SKETCH}"; then
+  die "upload_failed sketch=${SKETCH} port=${PORT}"
+fi
+
+summary "ok=true command=flash sketch=${SKETCH} port=${PORT} fqbn=${ARDUINO_FQBN} mode=${MODE}"

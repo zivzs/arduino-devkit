@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Create a minimal Arduino Uno sketch directory.
+set -euo pipefail
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_help() {
+  cat <<'EOF'
+Usage: arduino-scaffold <sketch-name-or-path> [--help]
+
+Creates:
+  <dir>/<Name>/<Name>.ino   minimal setup/loop
+  <dir>/<Name>/sketch.yaml  default_fqbn: arduino:avr:uno
+
+sketch-name-or-path may be a bare name (created under cwd) or a path.
+Does not overwrite an existing .ino.
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  print_help
+  exit 0
+fi
+if [[ $# -ne 1 ]]; then
+  usage_exit "arduino-scaffold: require exactly one sketch name/path (try --help)"
+fi
+
+TARGET="$1"
+# Reject path injection / empty
+[[ -n "${TARGET}" ]] || die "empty_target"
+[[ "${TARGET}" != *".."* ]] || die "path_traversal_rejected"
+
+if [[ "${TARGET}" == */* ]]; then
+  SKETCH_DIR="$(abs_path "${TARGET}")"
+else
+  SKETCH_DIR="$(abs_path "./${TARGET}")"
+fi
+NAME="$(basename "${SKETCH_DIR}")"
+[[ "${NAME}" =~ ^[A-Za-z][A-Za-z0-9_]*$ ]] || die "invalid_sketch_name name=${NAME} hint=must_be_C_identifier"
+
+INO="${SKETCH_DIR}/${NAME}.ino"
+YAML="${SKETCH_DIR}/sketch.yaml"
+
+if [[ -f "${INO}" ]]; then
+  die "already_exists path=${INO}"
+fi
+
+mkdir -p "${SKETCH_DIR}"
+cat > "${INO}" <<EOF
+// ${NAME} — Arduino Uno (arduino:avr:uno)
+void setup() {
+  // put your setup code here, to run once:
+}
+
+void loop() {
+  // put your main code here, to run repeatedly:
+}
+EOF
+
+cat > "${YAML}" <<EOF
+default_fqbn: ${ARDUINO_FQBN}
+EOF
+
+summary "ok=true command=scaffold path=${SKETCH_DIR} fqbn=${ARDUINO_FQBN}"

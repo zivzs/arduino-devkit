@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Diagnose pinned toolchain: cli version, Uno FQBN, serial ports.
+set -euo pipefail
+# shellcheck source=_common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
+
+print_help() {
+  cat <<'EOF'
+Usage: arduino-doctor [--help]
+
+Print arduino-cli version, whether FQBN arduino:avr:uno is known, and board list
+(serial ports). Prefers Docker image arduino-devkit:uno when present.
+
+Environment:
+  ARDUINO_DEVKIT_MODE   auto|docker|host (default: auto)
+  ARDUINO_DEVKIT_IMAGE  docker image tag (default: arduino-devkit:uno)
+  ARDUINO_CLI           path to host arduino-cli (host mode)
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  print_help
+  exit 0
+fi
+if [[ $# -gt 0 ]]; then
+  usage_exit "arduino-doctor: unexpected arguments (try --help)"
+fi
+
+MODE="host"
+if use_docker; then
+  MODE="docker"
+fi
+
+echo "=== arduino-devkit doctor ==="
+echo "mode=${MODE} fqbn=${ARDUINO_FQBN} image=${ARDUINO_DEVKIT_IMAGE}"
+
+echo "--- version ---"
+if ! run_cli version; then
+  die "cli_version_failed"
+fi
+
+echo "--- board listall (uno) ---"
+UNO_OK=0
+if run_cli board listall "${ARDUINO_FQBN}"; then
+  UNO_OK=1
+else
+  echo "(board listall failed — core may be missing in host mode)" >&2
+fi
+
+echo "--- board list (ports) ---"
+PORTS_OUT=""
+if PORTS_OUT="$(run_cli board list 2>&1)"; then
+  echo "${PORTS_OUT}"
+else
+  echo "${PORTS_OUT}" >&2
+  echo "(board list failed — often expected inside network-none docker without USB)" >&2
+fi
+
+summary "ok=true command=doctor mode=${MODE} fqbn=${ARDUINO_FQBN} uno_listed=${UNO_OK}"
